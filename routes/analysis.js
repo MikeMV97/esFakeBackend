@@ -1,8 +1,12 @@
 const axios = require("axios");
 const express = require("express");
+const boom = require("@hapi/boom");
 const { config } = require("../config");
 const { AnalysisService } = require("../services/analysis");
 const { NewsService } = require("../services/news");
+const { UserService } = require("../services/user");
+// Util
+const { verifyToken } = require("../utils/auth/authorizationToken");
 
 
 function analysisApi(app) {
@@ -12,18 +16,25 @@ function analysisApi(app) {
     // Services
     const analysisService = new AnalysisService();
     const newsService = new NewsService()
+    const userService = new UserService()
 
     router.post('/predict', async function (req, res, next) {
-        const { url, title, articleText } = req.body
+        const { url, title, articleText, email } = req.body
+        console.log({ url, title, articleText, email });
         try {
+            const user = await userService.getUserByEmail(email)
+            if (!user) {
+                next(boom.unauthorized("User not found"))
+            }
             const newByUrl = await newsService.getNewByUrl(url)
             if (newByUrl) {
+                // console.log('Noticia ya revisada:', {newByUrl});
                 const analysis = await analysisService.getAnalysis({ id: newByUrl.dataValues.analysisId })
-                delete analysis.dataValues.id
                 return res.status(200).json(analysis.dataValues)
             }
 
-            const { data } = await axios.post(config.modelUrl, { article_text: articleText })
+            const { data } = await axios.post(config.modelUrl, { article_text: articleText });
+            console.log({data});
             const analysis = {
                 avgWordLen: data.avg_word_len,
                 sentimentTxt: data.sentiment_txt,
@@ -36,6 +47,7 @@ function analysisApi(app) {
             }
             // Crea analisis
             const createdAnalysis = await analysisService.createAnalysis(analysis)
+            await user.addAnalysis(createdAnalysis, { through: { selfGranted: false } })
             const analysisId = createdAnalysis.dataValues.id
 
             // Crea noticia con analisis
@@ -47,7 +59,31 @@ function analysisApi(app) {
             })
 
             // Devuelve analisis
+            return res.status(201).json(createdAnalysis.dataValues)
+        } catch (error) {
+            next(error)
+        }
+    });
+
+    router.get('/', async function (req, res, next) {
+        const { id } = req.body
+
+        try {
+            const { dataValues: analysis } = await analysisService.getAnalysis({ id })
             return res.status(200).json(analysis)
+        }
+        catch (error) {
+            next(error)
+        }
+    })
+
+    router.get('/user-analyses', async function (req, res, next) {
+        try {
+            const { email } = req.body
+            const { analyses } = await userService.getUserWithAnalyses(email)
+            const newsPromises = analyses.map(({id}) => newsService.getNewByAnalysesId(id))
+            const news = await Promise.all(newsPromises)
+            res.status(200).json({news})
         } catch (error) {
             next(error)
         }
