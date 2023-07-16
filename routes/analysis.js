@@ -5,6 +5,8 @@ const { config } = require("../config");
 const { AnalysisService } = require("../services/analysis");
 const { NewsService } = require("../services/news");
 const { UserService } = require("../services/user");
+// Util
+const { verifyToken } = require("../utils/auth/authorizationToken");
 
 
 function analysisApi(app) {
@@ -18,6 +20,7 @@ function analysisApi(app) {
 
     router.post('/predict', async function (req, res, next) {
         const { url, title, articleText, email } = req.body
+        console.log({ url, title, articleText, email });
         try {
             const user = await userService.getUserByEmail(email)
             if (!user) {
@@ -25,11 +28,13 @@ function analysisApi(app) {
             }
             const newByUrl = await newsService.getNewByUrl(url)
             if (newByUrl) {
+                // console.log('Noticia ya revisada:', {newByUrl});
                 const analysis = await analysisService.getAnalysis({ id: newByUrl.dataValues.analysisId })
                 return res.status(200).json(analysis.dataValues)
             }
 
-            const { data } = await axios.post(config.modelUrl, { article_text: articleText })
+            const { data } = await axios.post(config.modelUrl, { article_text: articleText });
+            console.log({data});
             const analysis = {
                 avgWordLen: data.avg_word_len,
                 sentimentTxt: data.sentiment_txt,
@@ -58,7 +63,7 @@ function analysisApi(app) {
         } catch (error) {
             next(error)
         }
-    })
+    });
 
     router.get('/', async function (req, res, next) {
         const { id } = req.body

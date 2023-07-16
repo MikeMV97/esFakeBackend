@@ -13,9 +13,14 @@ class UserService {
   async createUser(user, photo) {
     const { password } = user;
 
-    let photoUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/OOjs_UI_icon_userAvatar.svg/2048px-OOjs_UI_icon_userAvatar.svg.png"
-    if(photo){
-      photoUrl = await imageService.upload(photo);
+    let photoUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/OOjs_UI_icon_userAvatar.svg/2048px-OOjs_UI_icon_userAvatar.svg.png";
+    if (photo) {
+      try {
+        photoUrl = await imageService.upload(photo);
+      } catch (error) {
+        // Error occurred during the upload
+        console.error(error);
+      }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -29,7 +34,7 @@ class UserService {
     let newUser = await this.table.create(tmpUser);
 
     delete newUser.dataValues.password;
-    
+
     return newUser.dataValues;
   }
 

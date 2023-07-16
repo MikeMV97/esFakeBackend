@@ -8,7 +8,7 @@ class ApiKeyService {
   async createApiKey(apiKey) {
     try {
       const newApiKey = await this.table.create(apiKey);
-      return newApiKey;
+      return newApiKey.dataValues;
     } catch (error) {
       console.error(error);
     }
